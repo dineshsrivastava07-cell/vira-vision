@@ -1,0 +1,69 @@
+# Authoritative schema for VIRA Vision NL->SQL corpus.
+# CH_DATABASE=vmart_sales; cross-database tables use fully-qualified names.
+
+tables:
+  - name: dt_pos_transactional_data
+    notes: >
+      Main POS fact table (Distributed). One row per article per bill line.
+      BILLDATE is IST wall-clock in DateTime -- use toDate(BILLDATE) directly.
+      ZONE and REGION are denormalised (no stores JOIN needed for those).
+      For STORE_NAME: GLOBAL LEFT JOIN stores s ON s.CODE = t.STORE_ID
+      then ifNull(s.STORE_NAME, t.STORE_ID).
+      Always filter DIVISION NOT IN ('Others','Fixed Assets','Repair and Maintenance','Marketing N Advertisement').
+    columns:
+      - {name: BILLDATE,    type: DateTime}
+      - {name: STORE_ID,    type: String}
+      - {name: ZONE,        type: String}
+      - {name: REGION,      type: String}
+      - {name: BILLNO,      type: String}
+      - {name: DIVISION,    type: String}
+      - {name: SECTION,     type: String}
+      - {name: DEPARTMENT,  type: String}
+      - {name: ARTICLECODE, type: String}
+      - {name: ARTICLENAME, type: String}
+      - {name: ICODE,       type: String}
+      - {name: NETAMT,      type: Float64}
+      - {name: GROSSAMT,    type: Float64}
+      - {name: QTY,         type: Float64}
+      - {name: DISCOUNTAMT, type: Float64}
+      - {name: PROMOAMT,    type: Float64}
+
+  - name: stores
+    notes: >
+      Store master (MergeTree). Join: stores.CODE = dt_pos_transactional_data.STORE_ID.
+      Use GLOBAL LEFT JOIN with Distributed fact table.
+      Active stores: ACTIVE = 'TRUE'. Types: Apparel, Composite, Fashion.
+    columns:
+      - {name: CODE,           type: String}
+      - {name: STORE_NAME,     type: "Nullable(String)"}
+      - {name: STORE_FULLNAME, type: "Nullable(String)"}
+      - {name: REGION,         type: "Nullable(String)"}
+      - {name: ZONE,           type: "Nullable(String)"}
+      - {name: STORE_TYPE,     type: "Nullable(String)"}
+      - {name: AREA_TIER,      type: "Nullable(String)"}
+      - {name: ACTIVE,         type: String}
+      - {name: OPENING_DATE,   type: "Nullable(Date)"}
+
+  - name: vmart_product.inventory_current
+    notes: Current SOH snapshot (one row per store-article).
+    columns:
+      - {name: ICODE,      type: String}
+      - {name: STORE_CODE, type: String}
+      - {name: SOH,        type: Int32}
+      - {name: UPDATED_AT, type: DateTime}
+
+  - name: vmart_product.vitem_data
+    notes: >
+      Item/article master. Join on ICODE.
+      IMPORTANT: Use subquery pattern on CH 26.4+ (not direct JOIN on view).
+      COSTRATE and MRP stored as String -- use toFloat64OrZero(COSTRATE).
+      Fan-out warning: multiple rows per ICODE -- pre-aggregate before joining.
+    columns:
+      - {name: ICODE,           type: String}
+      - {name: ARTICLECODE,     type: String}
+      - {name: ARTICLENAME,     type: String}
+      - {name: MRP,             type: String}
+      - {name: COSTRATE,        type: String}
+      - {name: DIVISIONALIAS,   type: String}
+      - {name: SECTIONALIAS,    type: String}
+      - {name: DEPARTMENTALIAS, type: String}

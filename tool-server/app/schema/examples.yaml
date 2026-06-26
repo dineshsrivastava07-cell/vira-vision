@@ -1,0 +1,81 @@
+# Few-shot NL->SQL examples. Column: NETAMT (net sales), not NET_SALES.
+# stores.ACTIVE uses 'TRUE'/'FALSE' strings.
+
+examples:
+  - question: Top 10 stores by net sales last month
+    sql: |
+      SELECT t.STORE_ID, ifNull(s.STORE_NAME, t.STORE_ID) AS store_name,
+             sum(t.NETAMT) AS net_sales
+      FROM dt_pos_transactional_data t
+      GLOBAL LEFT JOIN stores s ON s.CODE = t.STORE_ID
+      WHERE t.DIVISION NOT IN ('Others','Fixed Assets','Repair and Maintenance','Marketing N Advertisement')
+        AND toDate(t.BILLDATE) >= toStartOfMonth(addMonths(today(), -1))
+        AND toDate(t.BILLDATE) <  toStartOfMonth(today())
+      GROUP BY t.STORE_ID, store_name
+      ORDER BY net_sales DESC LIMIT 10
+
+  - question: ATV by region yesterday
+    sql: |
+      SELECT REGION, sum(NETAMT) / count(DISTINCT BILLNO) AS atv
+      FROM dt_pos_transactional_data
+      WHERE DIVISION NOT IN ('Others','Fixed Assets','Repair and Maintenance','Marketing N Advertisement')
+        AND toDate(BILLDATE) = yesterday()
+      GROUP BY REGION ORDER BY atv DESC
+
+  - question: Daily net sales trend last 30 days
+    sql: |
+      SELECT toDate(BILLDATE) AS day, sum(NETAMT) AS net_sales
+      FROM dt_pos_transactional_data
+      WHERE DIVISION NOT IN ('Others','Fixed Assets','Repair and Maintenance','Marketing N Advertisement')
+        AND toDate(BILLDATE) >= today() - 30
+      GROUP BY day ORDER BY day
+
+  - question: UPT by division this month
+    sql: |
+      SELECT DIVISION, sum(QTY) / count(DISTINCT BILLNO) AS upt
+      FROM dt_pos_transactional_data
+      WHERE DIVISION NOT IN ('Others','Fixed Assets','Repair and Maintenance','Marketing N Advertisement')
+        AND toDate(BILLDATE) >= toStartOfMonth(today())
+      GROUP BY DIVISION ORDER BY upt DESC
+
+  - question: Discount pct by section last week
+    sql: |
+      SELECT SECTION, sum(DISCOUNTAMT) / nullIf(sum(GROSSAMT), 0) * 100 AS discount_pct
+      FROM dt_pos_transactional_data
+      WHERE DIVISION NOT IN ('Others','Fixed Assets','Repair and Maintenance','Marketing N Advertisement')
+        AND toDate(BILLDATE) >= toStartOfWeek(today() - 7)
+        AND toDate(BILLDATE) <  toStartOfWeek(today())
+      GROUP BY SECTION ORDER BY discount_pct DESC
+
+  - question: Inventory SOH by division
+    sql: |
+      SELECT v.DIVISIONALIAS AS division, sum(i.SOH) AS total_soh
+      FROM vmart_product.inventory_current i
+      JOIN (SELECT ICODE, DIVISIONALIAS FROM vmart_product.vitem_data) v ON v.ICODE = i.ICODE
+      GROUP BY v.DIVISIONALIAS ORDER BY total_soh DESC
+
+  - question: Net sales by zone this week
+    sql: |
+      SELECT ZONE, sum(NETAMT) AS net_sales
+      FROM dt_pos_transactional_data
+      WHERE DIVISION NOT IN ('Others','Fixed Assets','Repair and Maintenance','Marketing N Advertisement')
+        AND toDate(BILLDATE) >= toStartOfWeek(today())
+      GROUP BY ZONE ORDER BY net_sales DESC
+
+  - question: All store performance with ATV UPT discount last month
+    sql: |
+      SELECT t.STORE_ID, ifNull(s.STORE_NAME, t.STORE_ID) AS store_name,
+             s.ZONE, s.REGION, s.STORE_TYPE,
+             sum(t.NETAMT) AS net_sales,
+             sum(t.NETAMT) / count(DISTINCT t.BILLNO) AS atv,
+             sum(t.QTY) / count(DISTINCT t.BILLNO) AS upt,
+             sum(t.DISCOUNTAMT) / nullIf(sum(t.GROSSAMT), 0) * 100 AS discount_pct,
+             count(DISTINCT t.BILLNO) AS transactions
+      FROM dt_pos_transactional_data t
+      GLOBAL LEFT JOIN stores s ON s.CODE = t.STORE_ID
+      WHERE t.DIVISION NOT IN ('Others','Fixed Assets','Repair and Maintenance','Marketing N Advertisement')
+        AND s.ACTIVE = 'TRUE'
+        AND toDate(t.BILLDATE) >= toStartOfMonth(addMonths(today(), -1))
+        AND toDate(t.BILLDATE) <  toStartOfMonth(today())
+      GROUP BY t.STORE_ID, store_name, s.ZONE, s.REGION, s.STORE_TYPE
+      ORDER BY net_sales DESC LIMIT 500

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>VIRA Vision — Dashboard</title>
+  <style>html,body{margin:0;height:100%;font-family:system-ui,sans-serif}#lb{height:100vh;width:100%}#msg{padding:16px;color:#444}</style>
+</head>
+<body>
+  <div id="msg">Loading dashboard&hellip;</div>
+  <div id="lb"></div>
+  <script type="module">
+    const THOUGHTSPOT_HOST = "https://your-thoughtspot-host.thoughtspot.cloud";
+    const TOKEN_ENDPOINT = "/ts-token";  // endpoint that returns {token}
+    const LIVEBOARD_ID = new URLSearchParams(location.search).get("id") || "";
+    import("https://cdn.jsdelivr.net/npm/@thoughtspot/visual-embed-sdk/dist/index.es.js")
+      .then(({ init, LiveboardEmbed, AuthType }) => {
+        init({ thoughtSpotHost: THOUGHTSPOT_HOST, authType: AuthType.TrustedAuthTokenCookieless,
+               getAuthToken: () => fetch(TOKEN_ENDPOINT).then(r => r.json()).then(d => d.token) });
+        if (!LIVEBOARD_ID) {
+          document.getElementById("msg").textContent = "Pass ?id=<liveboard-guid> in the URL";
+          return;
+        }
+        document.getElementById("msg").style.display = "none";
+        new LiveboardEmbed("#lb", { liveboardId: LIVEBOARD_ID, fullHeight: true }).render();
+      })
+      .catch(e => { document.getElementById("msg").textContent = "SDK load failed: " + e; });
+  </script>
+</body>
+</html>
